@@ -1,0 +1,39 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Libris",
+  "version": "1.0.7",
+  "identifier": "br.gov.ce.crede17.libris",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build:hosting",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Libris - Biblioteca Escolar",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 900,
+        "minHeight": 620,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' asset:; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' asset: data: blob: https:; connect-src 'self' ipc: http://ipc.localhost https://www.googleapis.com https://accounts.google.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://openlibrary.org https://api.emailjs.com https://firebaseapp.com https://firebaseinstallations.googleapis.com https://www.gstatic.com; frame-src https://*.firebaseapp.com https://accounts.google.com; object-src 'none'; base-uri 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["deb"],
+    "category": "Education",
+    "shortDescription": "Biblioteca escolar com dados locais e backup no Google Drive",
+    "longDescription": "Aplicativo desktop da biblioteca escolar Libris. Os dados operacionais ficam no computador da escola e podem ser enviados ao Google Drive como backup.",
+    "icon": [
+      "../icons/libris-192.png",
+      "../icons/libris-512.png"
+    ]
+  }
+}

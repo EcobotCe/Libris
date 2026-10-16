@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "Permissões básicas da janela principal do Libris.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

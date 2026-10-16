@@ -1,0 +1,109 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function currentUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && currentUserDoc().data.role == 'admin'
+        && currentUserDoc().data.schoolId is string
+        && currentUserDoc().data.schoolId.size() > 0;
+    }
+
+    function sameSchool(schoolId) {
+      return isAdmin()
+        && schoolId is string
+        && schoolId == currentUserDoc().data.schoolId;
+    }
+
+    function validBookStock() {
+      return request.resource.data.keys().hasAll(['title', 'author', 'schoolId', 'total', 'available', 'categoryId'])
+        && request.resource.data.title is string
+        && request.resource.data.author is string
+        && request.resource.data.schoolId is string
+        && request.resource.data.categoryId is string
+        && request.resource.data.total is int
+        && request.resource.data.total >= 1
+        && request.resource.data.available is int
+        && request.resource.data.available >= 0
+        && request.resource.data.available <= request.resource.data.total;
+    }
+
+    match /schools/{schoolId} {
+      allow read, create, update: if sameSchool(schoolId);
+      allow delete: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if (signedIn() && request.auth.uid == userId)
+        || (isAdmin() && sameSchool(resource.data.schoolId));
+      allow delete: if false;
+    }
+
+    match /books/{bookId} {
+      allow read: if sameSchool(resource.data.schoolId);
+      allow create: if sameSchool(request.resource.data.schoolId)
+        && validBookStock();
+      allow update: if sameSchool(resource.data.schoolId)
+        && request.resource.data.schoolId == resource.data.schoolId
+        && validBookStock();
+      allow delete: if sameSchool(resource.data.schoolId);
+    }
+
+    match /counters/{counterId} {
+      allow read: if sameSchool(resource.data.schoolId);
+      allow create: if sameSchool(request.resource.data.schoolId);
+      allow update: if sameSchool(resource.data.schoolId)
+        && request.resource.data.schoolId == resource.data.schoolId;
+      allow delete: if sameSchool(resource.data.schoolId);
+    }
+
+    match /categories/{categoryId} {
+      allow read: if sameSchool(resource.data.schoolId);
+      allow create: if sameSchool(request.resource.data.schoolId);
+      allow update: if sameSchool(resource.data.schoolId)
+        && request.resource.data.schoolId == resource.data.schoolId;
+      allow delete: if sameSchool(resource.data.schoolId);
+    }
+
+    match /readers/{readerId} {
+      allow read: if sameSchool(resource.data.schoolId);
+      allow create: if sameSchool(request.resource.data.schoolId);
+      allow update: if sameSchool(resource.data.schoolId)
+        && request.resource.data.schoolId == resource.data.schoolId;
+      allow delete: if sameSchool(resource.data.schoolId);
+    }
+
+    match /reservations/{reservationId} {
+      allow read: if sameSchool(resource.data.schoolId);
+      allow create: if sameSchool(request.resource.data.schoolId)
+        && request.resource.data.status in ['pending', 'fulfilled', 'cancelled'];
+      allow update: if sameSchool(resource.data.schoolId)
+        && request.resource.data.schoolId == resource.data.schoolId
+        && request.resource.data.status in ['pending', 'fulfilled', 'cancelled'];
+      allow delete: if false;
+    }
+
+    match /loans/{loanId} {
+      allow read: if sameSchool(resource.data.schoolId);
+      allow create: if sameSchool(request.resource.data.schoolId)
+        && (!('notices' in request.resource.data) || request.resource.data.notices is map);
+      allow update: if sameSchool(resource.data.schoolId)
+        && request.resource.data.schoolId == resource.data.schoolId;
+      allow delete: if false;
+    }
+
+    match /audit_logs/{logId} {
+      allow read: if sameSchool(resource.data.schoolId);
+      allow create: if sameSchool(request.resource.data.schoolId);
+      allow update, delete: if false;
+    }
+  }
+}
