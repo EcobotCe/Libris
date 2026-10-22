@@ -141,7 +141,7 @@ function renderCategorySelect() {
 function renderCategoryList() {
   const list = $('#categoryList')
   if (!list) return
-  list.innerHTML = getCategoryOptions().length ? getCategoryOptions().map((c) => `<div class="category-item"><span>${esc(c.name)}</span><small>${esc(c.code || c.id)}</small><button type="button" class="small-btn danger" data-del-category="${esc(c.docId || c.id)}">Apagar isso</button></div>`).join('') : '<p class="empty-state">Nenhuma categoria cadastrada.</p>'
+  list.innerHTML = getCategoryOptions().length ? getCategoryOptions().map((c) => `<div class="category-item"><span>${esc(c.name)}</span><small>${esc(c.code || c.id)}</small><button type="button" class="small-btn danger" data-del-category="${esc(c.docId || c.id)}">Apagar</button></div>`).join('') : '<p class="empty-state">Nenhuma categoria cadastrada.</p>'
   $$('[data-del-category]').forEach((b) => b.onclick = () => removeCategory(b.dataset.delCategory))
 }
 
@@ -150,7 +150,7 @@ function renderBooks() {
   if (!body) return;
   const q = state.acervoQuery.toLowerCase().trim()
   const list = state.books.filter((b) => !q || [b.title, b.author, b.code].some((x) => String(x || '').toLowerCase().includes(q)))
-  body.innerHTML = list.length ? list.map((b) => `<tr><td>${esc(b.code)}</td><td>${esc(b.title)}</td><td>${esc(label(b.categoryId))}</td><td>${esc(b.tombamento || 'Não informado')}</td><td>${Number(b.total || 0)}</td><td>${esc(b.shelf || '—')}</td><td><span class="badge ${bookStatus(b) === 'disponivel' ? 'available' : 'borrowed'}">${bookStatus(b) === 'disponivel' ? 'Disponível' : 'Emprestado'}</span></td><td><div class="action-row"><button class="small-btn primary" type="button" data-edit-book="${b.id}">Editar</button><button class="small-btn danger" type="button" data-del-book="${b.id}">Apagar isso</button></div></td></tr>`).join('') : '<tr><td colspan="8">Nenhum livro cadastrado.</td></tr>';
+  body.innerHTML = list.length ? list.map((b) => `<tr><td>${esc(b.code)}</td><td>${esc(b.title)}</td><td>${esc(label(b.categoryId))}</td><td>${esc(b.tombamento || 'Não informado')}</td><td>${Number(b.total || 0)}</td><td>${esc(b.shelf || '—')}</td><td><span class="badge ${bookStatus(b) === 'disponivel' ? 'available' : 'borrowed'}">${bookStatus(b) === 'disponivel' ? 'Disponível' : 'Emprestado'}</span></td><td><div class="action-row"><button class="small-btn primary" type="button" data-edit-book="${b.id}">Editar</button><button class="small-btn danger" type="button" data-del-book="${b.id}">Apagar</button></div></td></tr>`).join('') : '<tr><td colspan="8">Nenhum livro cadastrado.</td></tr>';
   $$('[data-edit-book]').forEach((b) => b.onclick = () => editBook(b.dataset.editBook)); 
   $$('[data-del-book]').forEach((b) => b.onclick = () => removeBook(b.dataset.delBook))
 }
@@ -213,7 +213,7 @@ function renderReaders() {
     const matchesFilter = state.readerFilter === 'students' ? student : state.readerFilter === 'others' ? !student : true
     return matchesFilter && (!q || [reader.name, reader.type, reader.role, reader.matricula].some((x) => String(x || '').toLowerCase().includes(q)))
   })
-  body.innerHTML = list.length ? list.map((r) => `<tr><td>${esc(r.name)}</td><td>${esc(r.type || r.role || 'Aluno')}</td><td>${esc(r.course || r.class || 'Não se aplica')}</td><td>${esc(r.type === 'Aluno' ? r.matricula : r.cpf || 'Não informado')}</td><td>${esc(r.email || '—')}<br><small>${esc(r.phone || '')}</small></td><td><div class="action-row"><button class="small-btn primary" type="button" data-edit-reader="${r.id}">Editar</button><button class="small-btn danger" type="button" data-del-reader="${r.id}">Apagar isso</button></div></td></tr>`).join('') : '<tr><td colspan="6">Nenhum leitor cadastrado.</td></tr>';
+  body.innerHTML = list.length ? list.map((r) => `<tr><td>${esc(r.name)}</td><td>${esc(r.type || r.role || 'Aluno')}</td><td>${esc(r.course || r.class || 'Não se aplica')}</td><td>${esc(r.type === 'Aluno' ? r.matricula : r.cpf || 'Não informado')}</td><td>${esc(r.email || '—')}<br><small>${esc(r.phone || '')}</small></td><td><div class="action-row"><button class="small-btn primary" type="button" data-edit-reader="${r.id}">Editar</button><button class="small-btn danger" type="button" data-del-reader="${r.id}">Apagar</button></div></td></tr>`).join('') : '<tr><td colspan="6">Nenhum leitor cadastrado.</td></tr>';
   $$('[data-edit-reader]').forEach((b) => b.onclick = () => editReader(b.dataset.editReader)); 
   $$('[data-del-reader]').forEach((b) => b.onclick = () => removeReader(b.dataset.delReader)); 
   renderReaderSelector()
@@ -229,21 +229,26 @@ function count(list, key) { const map = new Map(); list.forEach((x) => { const k
 
 function renderBars(target, data) { if (!target) return; if (!data.length) { target.innerHTML = '<p class="empty-state">Sem dados.</p>'; return }; const max = Math.max(...data.map((x) => x.value), 1); target.innerHTML = data.map((x) => `<div class="bar-row"><span>${esc(x.label)}</span><div class="bar-track"><div class="bar-fill" style="width:${x.value / max * 100}%"></div></div><strong>${x.value}</strong></div>`).join('') }
 
-function renderDashboard() { 
-  const active = state.loans.filter((l) => l.status === 'active') 
+function renderDashboard() {
+  const active = state.loans.filter((l) => l.status === 'active')
   const overdueCount = active.filter(overdue).length
 
   const values = [
-    ['Total de Livros', state.books.reduce((n, b) => n + Number(b.total || 0), 0), '📚', 'acervo'],
-    ['Empréstimos Ativos', active.length, '📖', 'checkout'],
-    ['Livros em Atraso', overdueCount, '⚠️', 'checkout'],
-    ['Leitores Cadastrados', state.readers.length, '👥', 'leitores']
+    ['Total de Livros', state.books.reduce((n, b) => n + Number(b.total || 0), 0), '📚', 'acervo', ''],
+    ['Empréstimos Ativos', active.length, '📖', 'checkout', 'all'],
+    ['Livros em Atraso', overdueCount, '⚠️', 'checkout', 'overdue'],
+    ['Leitores Cadastrados', state.readers.length, '👥', 'leitores', '']
   ]
 
   const kpiGrid = $('#kpiGrid')
   if (kpiGrid) {
-    kpiGrid.innerHTML = values.map(([name, value, icon, targetTab]) => `
-      <div class="kpi-card panel clickable-kpi" data-target-tab="${targetTab}" style="cursor: pointer;">
+    kpiGrid.innerHTML = values.map(([name, value, icon, targetTab, targetFilter]) => `
+      <div
+        class="kpi-card panel clickable-kpi"
+        data-target-tab="${targetTab}"
+        data-target-filter="${targetFilter}"
+        style="cursor: pointer;"
+      >
         <div class="kpi-card-head">
           <span>${esc(name)}</span>
           <span class="kpi-icon">${icon}</span>
@@ -255,20 +260,67 @@ function renderDashboard() {
     $$('.clickable-kpi').forEach((card) => {
       card.onclick = () => {
         const targetTab = card.dataset.targetTab
-        if (targetTab) {
-          if (targetTab === 'checkout') {
-            state.loanFilter = 'all'
+        if (!targetTab) return
+
+        $$('.tab-btn').forEach((button) => {
+          button.classList.toggle('is-active', button.dataset.tab === targetTab)
+        })
+        $$('.tab-panel').forEach((panel) => {
+          panel.classList.toggle('is-active', panel.dataset.panel === targetTab)
+        })
+
+        if (targetTab === 'checkout') {
+          const filterSelect = $('#loanFilterSelect')
+          const targetFilter = card.dataset.targetFilter || 'all'
+
+          if (filterSelect) {
+            filterSelect.value = targetFilter
+            filterSelect.dispatchEvent(new Event('change', { bubbles: true }))
+          } else {
+            state.loanFilter = targetFilter
+            renderLoans()
           }
-          $$('.tab-btn').forEach((b) => b.classList.toggle('is-active', b.dataset.tab === targetTab))
-          $$('.tab-panel').forEach((p) => p.classList.toggle('is-active', p.dataset.panel === targetTab))
-          renderLoans()
-          $('.admin-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
         }
+
+        $('.admin-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }
     })
   }
 
-  renderBars($('#genreChart'), getCategoryOptions().map((c) => ({ label: c.name, value: state.books.filter((b) => b.categoryId === c.id).length })).filter((x) => x.value).sort((a, b) => b.value - a.value).slice(0, 5))
+  const categoryNames = new Map()
+
+  getCategoryOptions().forEach((category) => {
+    const name = String(category.name || category.code || category.id || '').trim()
+    if (!name) return
+
+    for (const key of [category.id, category.code, category.name]) {
+      if (key) categoryNames.set(String(key).trim().toLocaleLowerCase('pt-BR'), name)
+    }
+  })
+
+  const booksByGenre = new Map()
+
+  state.books.forEach((book) => {
+    const categoryKey = String(book.categoryId || '').trim().toLocaleLowerCase('pt-BR')
+    const categoryName = String(book.categoryName || '').trim()
+    const codePrefix = String(book.code || '').match(/^([A-Z0-9]{1,4})-\d{4}$/i)?.[1]
+    const genre =
+      categoryNames.get(categoryKey) ||
+      (categoryName && categoryName !== categoryKey ? categoryName : '') ||
+      categoryNames.get(String(codePrefix || '').toLocaleLowerCase('pt-BR')) ||
+      categoryName ||
+      codePrefix ||
+      'Sem categoria'
+
+    booksByGenre.set(genre, (booksByGenre.get(genre) || 0) + 1)
+  })
+
+  const topGenres = [...booksByGenre]
+    .map(([label, value]) => ({ label, value }))
+    .sort((left, right) => right.value - left.value || left.label.localeCompare(right.label, 'pt-BR'))
+    .slice(0, 5)
+
+  renderBars($('#genreChart'), topGenres)
   const total = state.books.reduce((n, b) => n + Number(b.total || 0), 0)
   const free = state.books.reduce((n, b) => n + Number(b.available || 0), 0)
   const percent = total ? Math.round(free / total * 100) : 0
@@ -413,7 +465,7 @@ async function addCategory(event) {
 }
 
 async function removeCategory(id) {
-  if (!confirm('Apagar isso? Esta categoria será removida.')) return
+  if (!confirm('Apagar esta categoria?')) return
   try {
     await deleteDoc(doc(db, 'categories', id))
     toast('Categoria apagada.')
@@ -459,13 +511,13 @@ async function addReader(event) {
 /* Remove book / reader */
 async function removeBook(id) {
   if (state.loans.some((loan) => loan.bookId === id && loan.status === 'active')) return toast('Não é possível apagar um livro com empréstimo ativo.', 'error')
-  if (!confirm('Apagar isso? Este livro será removido do acervo.')) return
+  if (!confirm('Apagar este livro?')) return
   try { await deleteDoc(doc(db, 'books', id)); toast('Livro apagado.') } catch (err) { error(err, 'Não foi possível apagar o livro.') }
 }
 
 async function removeReader(id) {
   if (state.loans.some((loan) => loan.readerId === id && loan.status === 'active')) return toast('Não é possível apagar um leitor com empréstimo ativo.', 'error')
-  if (!confirm('Apagar isso? Este leitor será removido.')) return
+  if (!confirm('Apagar este leitor?')) return
   try { await deleteDoc(doc(db, 'readers', id)); toast('Leitor apagado.') } catch (err) { error(err, 'Não foi possível apagar o leitor.') }
 }
 
@@ -604,11 +656,23 @@ function normalizePhone(phone = '') {
 }
 
 function openWhatsAppMessage(reader, message) {
-  const phone = normalizePhone(reader?.phone)
-  if (!phone) return false
-  const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
-  window.open(url, '_blank', 'noopener,noreferrer')
-  return true
+  let phone = normalizePhone(reader?.phone)
+  if (!phone) {
+    toast('Este leitor não possui telefone cadastrado para WhatsApp.', 'error')
+    return false
+  }
+
+  if (phone.length === 10 || phone.length === 11) {
+    phone = `55${phone}`
+  } else if (!phone.startsWith('55') || ![12, 13].includes(phone.length)) {
+    toast('O telefone precisa incluir um número brasileiro válido com DDD.', 'error')
+    return false
+  }
+
+  const url = `https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`
+  const openedWindow = window.open(url, '_blank', 'noopener,noreferrer')
+  if (!openedWindow) toast('Não foi possível abrir o WhatsApp. Verifique se o navegador bloqueou a nova janela.', 'error')
+  return Boolean(openedWindow)
 }
 
 async function sendEmailNotification(reader, message, loan, recipient = reader, templateId = config.emailjs.studentTemplateId) {
@@ -742,7 +806,7 @@ async function triggerNotification(type) {
 
   if (type === 'whatsapp') {
     const sent = openWhatsAppMessage(reader, message)
-    if (!sent) return toast('Este leitor não possui telefone cadastrado para WhatsApp.', 'error')
+    if (!sent) return
 
     toast('WhatsApp aberto com a mensagem.')
     modal('notificationModal', false)
@@ -877,8 +941,16 @@ async function updateDriveBackupStatus() {
   const status = $('#backupDriveStatus')
   if (!button || !status || state.profile?.role !== 'admin') return false
   const backup = await getDoc(doc(db, '_local_metadata', `drive-backup-${config.currentSchoolId}`))
-  const lastBackupAt = backup.exists() ? new Date(backup.data().lastBackupAt || 0) : null
-  const due = !lastBackupAt || Date.now() - lastBackupAt.getTime() >= 7 * 24 * 60 * 60 * 1000
+  const rawLastBackupAt = backup.exists() ? backup.data().lastBackupAt : null
+  const lastBackupAt = rawLastBackupAt?.toDate
+    ? rawLastBackupAt.toDate()
+    : rawLastBackupAt
+      ? new Date(rawLastBackupAt)
+      : null
+
+  const validLastBackupAt = lastBackupAt instanceof Date && !Number.isNaN(lastBackupAt.getTime())
+  const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000
+  const due = !validLastBackupAt || Date.now() - lastBackupAt.getTime() >= sevenDaysInMs
   button.hidden = false
   button.textContent = due ? 'Enviar backup semanal' : 'Backup no Drive'
   status.hidden = false
@@ -939,6 +1011,27 @@ function downloadBlob(blob, filename) {
   link.download = filename
   link.click()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+function downloadBookCsvTemplate() {
+  const headers = [
+    'Código',
+    'Categoria',
+    'Título',
+    'Autor',
+    'Editora',
+    'Ano',
+    'Localização',
+    'Disponíveis',
+    'Total',
+    'Tombamento',
+    'Sinopse',
+    'URL da capa'
+  ]
+
+  const csv = `\uFEFF${csvFromRows([headers])}`
+  const file = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+  downloadBlob(file, 'Libris_Modelo_Livros.csv')
 }
 
 async function exportCsv() {
@@ -1750,156 +1843,25 @@ async function notify(id) {
   }
 }
 
-/* -------------------------
-   QR scanner
-   ------------------------- */
-let qrScannerStream = null
-let qrScannerControls = null
-let qrHardwareScanTimer = null
+function handleBookCodeEntry(event) {
+  if (event.key !== 'Enter') return
 
-function stopQrScanner() {
-  clearTimeout(qrHardwareScanTimer)
-  qrHardwareScanTimer = null
-  qrScannerControls?.stop()
-  qrScannerControls = null
-  const video = $('#qrScannerVideo')
-  const stream = qrScannerStream || video?.srcObject
-  stream?.getTracks().forEach((track) => track.stop())
-  qrScannerStream = null
-  if (video) {
-    video.pause()
-    video.srcObject = null
-  }
-}
+  event.preventDefault()
 
-function openQrScanner() {
-  stopQrScanner()
-  if ($('#qrCameraPanel')) $('#qrCameraPanel').hidden = true
-  if ($('#qrHardwarePanel')) $('#qrHardwarePanel').hidden = true
-  if ($('#qrCameraModeBtn')) $('#qrCameraModeBtn').classList.remove('is-active')
-  if ($('#qrHardwareModeBtn')) $('#qrHardwareModeBtn').classList.remove('is-active')
-  if ($('#qrCameraModeBtn')) $('#qrCameraModeBtn').setAttribute('aria-pressed', 'false')
-  if ($('#qrHardwareModeBtn')) $('#qrHardwareModeBtn').setAttribute('aria-pressed', 'false')
-  if ($('#hardwareScannerInput')) $('#hardwareScannerInput').value = ''
-  modal('qrScannerModal', true)
-  $('#qrCameraModeBtn')?.focus()
-}
+  const input = event.currentTarget
+  const scannedCode = String(input.value || '').trim().toUpperCase()
+  if (!scannedCode) return
 
-function acceptScannedBook(rawValue) {
-  const normalizedValue = String(rawValue || '').trim()
-  if (!normalizedValue) return false
-
-  let payload = null
-  try { payload = JSON.parse(normalizedValue) } catch { /* Leitores antigos podem enviar somente o código */ }
-  const payloadSchoolId = payload?.schoolId || payload?.s
-  const payloadBookId = payload?.bookId || payload?.b
-  const payloadCode = payload?.code || payload?.c
-  if (payloadSchoolId && payloadSchoolId !== config.currentSchoolId) {
-    const message = 'Este código pertence a outra escola. Use uma etiqueta desta unidade.'
-    if ($('#hardwareScannerStatus')) $('#hardwareScannerStatus').textContent = message
-    if ($('#qrScannerStatus')) $('#qrScannerStatus').textContent = message
-    toast(message, 'error')
-    return false
-  }
-
-  const matchedCode = payloadCode || normalizedValue.match(/(?:^|[^A-Z0-9])([A-Z0-9]{1,4}-\d{4})(?:$|[^A-Z0-9])/i)?.[1] || normalizedValue
-  const book = payloadBookId
-    ? state.books.find((item) => item.id === payloadBookId)
-    : state.books.find((item) => item.code?.toUpperCase() === String(matchedCode).toUpperCase())
+  const book = state.books.find((item) => String(item.code || '').toUpperCase() === scannedCode)
   if (!book) {
-    const message = 'Livro não encontrado no acervo desta escola.'
-    if ($('#hardwareScannerStatus')) $('#hardwareScannerStatus').textContent = message
-    if ($('#qrScannerStatus')) $('#qrScannerStatus').textContent = `${message} Aponte para outra etiqueta.`
-    toast(message, 'error')
-    return false
+    toast('Livro não encontrado no acervo desta escola.', 'error')
+    input.select()
+    return
   }
 
-  if ($('#bookCodeInput')) $('#bookCodeInput').value = String(book.code || matchedCode).toUpperCase()
-  stopQrScanner()
-  modal('qrScannerModal', false)
-  $('#bookCodeInput')?.focus()
-  toast('Código lido. Confira o livro e registre o empréstimo.')
-  return true
-}
-
-function processHardwareScan() {
-  const input = $('#hardwareScannerInput')
-  const value = input?.value.trim()
-  if (!value) return
-  const accepted = acceptScannedBook(value)
-  if (!accepted && input) {
-    input.value = ''
-    input.focus()
-  }
-}
-
-function selectQrInputMode(mode) {
-  stopQrScanner()
-  const useCamera = mode === 'camera'
-  if ($('#qrCameraPanel')) $('#qrCameraPanel').hidden = !useCamera
-  if ($('#qrHardwarePanel')) $('#qrHardwarePanel').hidden = useCamera
-  if ($('#qrCameraModeBtn')) $('#qrCameraModeBtn').classList.toggle('is-active', useCamera)
-  if ($('#qrHardwareModeBtn')) $('#qrHardwareModeBtn').classList.toggle('is-active', !useCamera)
-  if ($('#qrCameraModeBtn')) $('#qrCameraModeBtn').setAttribute('aria-pressed', String(useCamera))
-  if ($('#qrHardwareModeBtn')) $('#qrHardwareModeBtn').setAttribute('aria-pressed', String(!useCamera))
-
-  if (useCamera) {
-    startQrCamera()
-  } else {
-    if ($('#hardwareScannerInput')) {
-      $('#hardwareScannerInput').value = ''
-      $('#hardwareScannerInput').focus()
-    }
-    if ($('#hardwareScannerStatus')) $('#hardwareScannerStatus').textContent = 'Leitor pronto. Mire o código ou escaneie a etiqueta QR.'
-  }
-}
-
-async function startQrCamera() {
-  const status = $('#qrScannerStatus')
-  if (!navigator.mediaDevices?.getUserMedia) {
-    const message = 'Para usar a câmera do celular, abra o Libris pelo endereço HTTPS publicado. Acesso local por HTTP pode bloquear a câmera.'
-    if (status) status.textContent = message
-    return toast(message, 'error')
-  }
-  const video = $('#qrScannerVideo')
-  if (!video) return toast('A janela do leitor QR não está disponível.', 'error')
-  if (status) status.textContent = 'Carregando leitor QR e solicitando acesso à câmera…'
-  try {
-    const tauriInvoke = window.__TAURI__?.core?.invoke
-    if (typeof tauriInvoke === 'function') await tauriInvoke('begin_camera_permission_request')
-    const { BrowserQRCodeReader } = await import('https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm')
-    const reader = new BrowserQRCodeReader()
-    qrScannerControls = await reader.decodeFromVideoDevice(
-      undefined,
-      video,
-      (result, scanError, controls) => {
-        if (result) {
-          if (acceptScannedBook(result.getText())) controls.stop()
-        }
-        if (scanError && scanError.name !== 'NotFoundException') {
-          console.warn('Falha durante a leitura do QR code:', scanError)
-        }
-      },
-      { video: { facingMode: { ideal: 'environment' } }, audio: false }
-    )
-    qrScannerStream = video.srcObject
-    if (status) status.textContent = 'Aponte a câmera para o QR code do livro.'
-  } catch (err) {
-    const tauriInvoke = window.__TAURI__?.core?.invoke
-    if (typeof tauriInvoke === 'function') {
-      try { await tauriInvoke('clear_camera_permission_request') } catch (permissionError) {
-        console.warn('Não foi possível limpar o pedido de permissão de câmera:', permissionError)
-      }
-    }
-    stopQrScanner()
-    const message = err?.name === 'NotAllowedError'
-      ? 'A câmera foi bloqueada. No navegador, permita-a nas configurações do site; no Linux, habilite o Libris em Configurações do sistema > Privacidade > Câmera. Feche e abra o leitor novamente.'
-      : err?.name === 'NotFoundError'
-        ? 'Nenhuma câmera foi encontrada neste dispositivo.'
-        : 'Não foi possível iniciar o leitor QR. Digite o código do livro manualmente.'
-    if (status) status.textContent = `${message} Você também pode escolher um leitor externo.`
-    toast(message, 'error')
-  }
+  input.value = book.code
+  $('#readerInput')?.focus()
+  toast(`Livro encontrado: ${book.title}. Selecione o leitor para continuar.`)
 }
 
 /* -------------------------
@@ -1946,6 +1908,20 @@ function setup() {
   if ($('#librisConfigForm')) $('#librisConfigForm').onsubmit = saveLibrisConfiguration
   if ($('#loginForm')) $('#loginForm').onsubmit = handleLocalLogin
   if ($('#credeLoginForm')) $('#credeLoginForm').onsubmit = handleCredeLogin
+  if ($('#toggleCredePasswordBtn')) {
+    $('#toggleCredePasswordBtn').onclick = () => {
+      const input = $('#credePasswordInput')
+      const button = $('#toggleCredePasswordBtn')
+      if (!input || !button) return
+
+      const showing = input.type === 'password'
+      input.type = showing ? 'text' : 'password'
+      button.setAttribute('aria-pressed', String(showing))
+      button.setAttribute('aria-label', showing ? 'Ocultar senha' : 'Mostrar senha')
+    }
+  }
+  if ($('#bookCodeInput')) $('#bookCodeInput').onkeydown = handleBookCodeEntry
+  if ($('#downloadBookCsvTemplateBtn')) $('#downloadBookCsvTemplateBtn').onclick = downloadBookCsvTemplate
   if ($('#addLocalAccountBtn')) $('#addLocalAccountBtn').onclick = () => addLocalAccountRow()
   if ($('#openCredeLoginBtn')) $('#openCredeLoginBtn').onclick = () => {
     if ($('#loginForm')) $('#loginForm').hidden = true
@@ -1959,24 +1935,6 @@ function setup() {
   if ($('#schoolSettingsForm')) $('#schoolSettingsForm').onsubmit = saveSchoolSettings
   if ($('#readerTypeInput')) $('#readerTypeInput').onchange = updateReaderFields
   if ($('#registerLoanBtn')) $('#registerLoanBtn').onclick = registerLoan
-  if ($('#scanBtn')) $('#scanBtn').onclick = openQrScanner
-  if ($('#qrScannerModal')) $('#qrScannerModal').onclick = (event) => {
-    const modeButton = event.target.closest('[data-qr-mode]')
-    if (modeButton) selectQrInputMode(modeButton.dataset.qrMode)
-  }
-  if ($('#hardwareScannerInput')) {
-    $('#hardwareScannerInput').oninput = () => {
-      clearTimeout(qrHardwareScanTimer)
-      if ($('#hardwareScannerStatus')) $('#hardwareScannerStatus').textContent = 'Leitura recebida. Aguardando o término do código…'
-      qrHardwareScanTimer = setTimeout(processHardwareScan, 350)
-    }
-    $('#hardwareScannerInput').onkeydown = (event) => {
-      if (event.key === 'Enter' || event.key === 'Tab') {
-        event.preventDefault()
-        processHardwareScan()
-      }
-    }
-  }
 
   if ($('#openBookModalBtn')) $('#openBookModalBtn').onclick = () => { resetBookForm(); modal('bookFormModal', true) }
   if ($('#openReaderModalBtn')) $('#openReaderModalBtn').onclick = () => { resetReaderForm(); modal('readerFormModal', true) }
@@ -2020,7 +1978,6 @@ function setup() {
   $$('.modal [data-close]').forEach((b) => b.onclick = () => {
     if (b.dataset.close === 'loginModal' && state.profile?.role !== 'admin') return
     if (b.dataset.close === 'settingsModal' && schoolSetupRequired) return toast('Informe o nome da escola para concluir a configuração inicial.', 'error')
-    if (b.dataset.close === 'qrScannerModal') stopQrScanner()
     modal(b.dataset.close, false)
   })
 
@@ -2085,7 +2042,7 @@ function addLocalAccountRow(email = '', id = '') {
   const removeButton = document.createElement('button')
   removeButton.type = 'button'
   removeButton.className = 'small-btn danger'
-  removeButton.textContent = 'Apagar isso'
+  removeButton.textContent = 'Apagar'
   removeButton.onclick = () => row.remove()
   row.append(emailInput, passwordInput, removeButton)
   container.append(row)

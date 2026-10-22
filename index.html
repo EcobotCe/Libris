@@ -152,8 +152,12 @@
                   <label>
                     <span>ID do livro</span>
                     <div class="input-row">
-                      <input id="bookCodeInput" type="text" placeholder="Ex: GE-0001" />
-                      <button type="button" class="btn btn-ghost" id="scanBtn">Escanear QR code</button>
+                      <input
+                        id="bookCodeInput"
+                        type="text"
+                        placeholder="Escaneie o código do livro (ex.: GE-0001)"
+                        autocomplete="off"
+                      />
                     </div>
                   </label>
                   <label>
@@ -342,7 +346,10 @@
           </label>
           <label>
             <span>Senha</span>
-            <input id="credePasswordInput" type="password" autocomplete="current-password" required />
+            <div class="password-input">
+              <input id="credePasswordInput" type="password" autocomplete="current-password" required />
+              <button class="password-toggle" id="toggleCredePasswordBtn" type="button" aria-label="Mostrar senha" aria-pressed="false">👁</button>
+            </div>
           </label>
           <button class="btn btn-secondary" id="credeLoginBtn" type="submit">Entrar como administração CREDE</button>
           <button class="btn btn-ghost" id="backToLocalLoginBtn" type="button">Voltar</button>
@@ -454,8 +461,16 @@
       <div class="modal-card small" role="dialog" aria-modal="true" aria-labelledby="importCsvFileTitle">
         <button class="modal-close" id="closeCsvFileModalBtn" type="button" aria-label="Fechar seleção de arquivo">×</button>
         <h3 id="importCsvFileTitle">Importar dados</h3>
+        <p class="modal-description">
+          Preencha uma linha por livro. O código deve seguir o formato PREFIXO-0001;
+          a categoria deve corresponder ao prefixo. Use ponto e vírgula como separador
+          ou baixe o modelo abaixo.
+        </p>
+        <button class="btn btn-ghost" id="downloadBookCsvTemplateBtn" type="button">
+          Baixar modelo em branco
+        </button>
         <label>
-          <span>Arquivo CSV legado ou backup completo ZIP com CSVs</span>
+          <span>CSV de livros ou backup completo ZIP</span>
           <input id="importCsvInput" type="file" accept=".csv,.zip,text/csv,application/zip" />
         </label>
         <div class="action-row">
@@ -488,32 +503,8 @@
         <div style="display:flex; flex-wrap:wrap; gap:0.65rem; margin-top:0.8rem;">
           <button class="btn btn-primary" type="button" id="copyNotificationBtn">Copiar mensagem</button>
           <button class="btn btn-ghost" type="button" id="sendWhatsappBtn">Enviar por WhatsApp</button>
-          <button class="btn btn-secondary" type="button" id="sendEmailBtn">E-mail (alunos: coordenação)</button>
+          <button class="btn btn-secondary" type="button" id="sendEmailBtn">Avisar aluno</button>
           <button class="btn btn-secondary" type="button" id="sendCoordinationBtn">Avisar coordenação</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal hidden" id="qrScannerModal" aria-hidden="true">
-      <div class="modal-backdrop" data-close="qrScannerModal"></div>
-      <div class="modal-card small qr-modal-card" role="dialog" aria-modal="true" aria-labelledby="qrScannerTitle">
-        <button class="modal-close" type="button" data-close="qrScannerModal" aria-label="Fechar">×</button>
-        <h3 id="qrScannerTitle">Ler código do livro</h3>
-        <p class="modal-description">Escolha como deseja fazer a leitura.</p>
-        <div class="scanner-mode-switch" role="group" aria-label="Modo de leitura">
-          <button class="scanner-mode-btn" id="qrCameraModeBtn" type="button" data-qr-mode="camera" aria-pressed="false">Câmera deste aparelho</button>
-          <button class="scanner-mode-btn" id="qrHardwareModeBtn" type="button" data-qr-mode="hardware" aria-pressed="false">Leitor externo</button>
-        </div>
-        <div id="qrCameraPanel" class="scanner-panel" hidden>
-          <video id="qrScannerVideo" class="qr-scanner-video" autoplay muted playsinline></video>
-          <p class="camera-help">Quando aparecer o pedido, escolha <strong>Permitir</strong>. Se já bloqueou: no navegador, abra o cadeado ao lado do endereço e permita a câmera; no Linux, abra Configurações do sistema → Privacidade → Câmera e habilite o Libris. Depois feche e abra o leitor novamente. No navegador, use HTTPS ou localhost.</p>
-          <p id="qrScannerStatus" class="scanner-status">Aponte a câmera para o QR code do livro.</p>
-        </div>
-        <div id="qrHardwarePanel" class="scanner-panel hardware-scanner-panel" hidden>
-          <label for="hardwareScannerInput">Aproxime o leitor do código</label>
-          <input id="hardwareScannerInput" type="text" autocomplete="off" placeholder="Aguardando leitura…" />
-          <p>Compatível com leitores USB ou Bluetooth que digitam o código no computador.</p>
-          <span id="hardwareScannerStatus" class="scanner-status" role="status" aria-live="polite">O campo receberá a leitura do dispositivo.</span>
         </div>
       </div>
     </div>
