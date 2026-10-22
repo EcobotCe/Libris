@@ -5,7 +5,7 @@ import { auth, signInWithEmailAndPassword, signOut } from './firebase.js'
 import { invoke, isTauri } from '@tauri-apps/api/core'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeFile } from '@tauri-apps/plugin-fs'
-import { openUrl } from '@tauri-apps/plugin-opener'
+import { open } from '@tauri-apps/plugin-shell'
 import { createLocalStore } from './local-store.mjs'
 import { createLocalDataApi } from './local-data.mjs'
 import { backupCollectionFiles, backupRecordFromRow, parseBackupCell, resolveLegacyCategory } from './csv-backup.mjs'
@@ -676,18 +676,15 @@ async function openWhatsAppMessage(reader, message) {
   const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
   try {
     if (isTauri()) {
-      await openUrl(url)
+      await open(url)
     } else {
-      const link = document.createElement('a')
-      link.href = url
-      link.target = '_blank'
-      link.rel = 'noopener noreferrer'
-      link.click()
+      const openedWindow = window.open(url, '_blank')
+      if (!openedWindow) throw new Error('A janela do WhatsApp foi bloqueada pelo navegador.')
     }
     return true
   } catch (err) {
     console.error('Falha ao abrir o WhatsApp:', err)
-    toast('Não foi possível abrir o WhatsApp. Verifique se há um navegador disponível.', 'error')
+    toast('Não foi possível abrir o link do WhatsApp.', 'error')
     return false
   }
 }
@@ -1796,7 +1793,11 @@ let qrScannerControls = null
 let cameraPermissionPending = false
 
 function stopQrScanner() {
-  qrScannerControls?.stop()
+  try {
+    qrScannerControls?.stop()
+  } catch (err) {
+    console.warn('Não foi possível parar os controles do leitor QR:', err)
+  }
   qrScannerControls = null
   const video = $('#qrScannerVideo')
   const stream = qrScannerStream || video?.srcObject
@@ -1887,18 +1888,23 @@ async function startQrCamera() {
       await invoke('begin_camera_permission_request')
       cameraPermissionPending = true
     }
+    qrScannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+    video.muted = true
+    video.playsInline = true
+    video.srcObject = qrScannerStream
+    await video.play()
+
     const { BrowserQRCodeReader } = await import('https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm')
     const reader = new BrowserQRCodeReader()
-    qrScannerControls = await reader.decodeFromVideoDevice(
-      undefined,
+    qrScannerControls = await reader.decodeFromStream(
+      qrScannerStream,
       video,
       (result, scanError, controls) => {
         if (result && acceptScannedBook(result.getText())) controls.stop()
         if (scanError && scanError.name !== 'NotFoundException') {
           console.warn('Falha durante a leitura do QR code:', scanError)
         }
-      },
-      { video: { facingMode: { ideal: 'environment' } }, audio: false }
+      }
     )
     if (isTauri() && cameraPermissionPending) {
       await invoke('clear_camera_permission_request')
@@ -1917,14 +1923,13 @@ async function startQrCamera() {
     }
     stopQrScanner()
     console.error('Falha ao iniciar a câmera ou o leitor QR:', err)
-    const detail = err?.message ? ` (${err.message})` : ''
     const message = err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError'
       ? 'A câmera foi bloqueada. Feche outros aplicativos que a estejam usando e permita o acesso nas configurações do sistema.'
       : err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError'
         ? 'Nenhuma câmera foi encontrada neste dispositivo.'
-        : `Não foi possível iniciar a câmera${err?.name ? ` (${err.name})` : ''}${detail}. Verifique a permissão e tente novamente.`
+        : 'Erro ao acessar a câmera. Verifique as permissões ou use o leitor USB.'
     if (status) status.textContent = message
-    toast(message, 'error')
+    toast('Erro ao acessar a câmera. Verifique as permissões ou use o leitor USB.', 'error')
   }
 }
 
