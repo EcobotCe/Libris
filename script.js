@@ -1894,7 +1894,7 @@ async function startQrCamera() {
     video.srcObject = qrScannerStream
     await video.play()
 
-    const { BrowserQRCodeReader } = await import('https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm')
+    const { BrowserQRCodeReader } = await import('@zxing/browser')
     const reader = new BrowserQRCodeReader()
     qrScannerControls = await reader.decodeFromStream(
       qrScannerStream,
