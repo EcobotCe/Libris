@@ -22,6 +22,9 @@ fn clear_camera_permission_request(camera_request: State<'_, Arc<AtomicBool>>) {
 fn main() {
     let camera_request = Arc::new(AtomicBool::new(false));
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(Arc::clone(&camera_request))
         .invoke_handler(tauri::generate_handler![
             begin_camera_permission_request,

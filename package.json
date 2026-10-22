@@ -1,4 +1,6 @@
 {
+  "name": "Libris",
+  "version": "1.11.0",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build:hosting": "node build-hosting.js",
@@ -7,6 +9,10 @@
     "test": "node --test"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/plugin-dialog": "^2.8.3",
+    "@tauri-apps/plugin-fs": "^2.7.1",
+    "@tauri-apps/plugin-opener": "^2.7.2",
     "firebase-admin": "^12.7.0",
     "xlsx": "^0.18.5"
   },

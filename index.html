@@ -97,13 +97,10 @@
               <h2>Gestão da biblioteca escolar</h2>
             </div>
             <div class="action-row">
-              <button class="btn btn-secondary" id="backupDriveBtn" type="button" hidden>Backup no Drive</button>
               <button class="btn btn-secondary" id="importCsvBtn" type="button">Importar</button>
               <button class="btn btn-secondary" id="exportBtn" type="button">Exportar</button>
             </div>
           </div>
-          <p id="backupReminder" class="modal-description backup-reminder">Lembre-se de fazer seu backup semanal no Google Drive.</p>
-          <p id="backupDriveStatus" class="modal-description" hidden></p>
 
           <div id="kpiGrid" class="kpi-grid"></div>
 
@@ -155,9 +152,10 @@
                       <input
                         id="bookCodeInput"
                         type="text"
-                        placeholder="Escaneie o código do livro (ex.: GE-0001)"
+                        placeholder="Digite ou escaneie (ex.: LI-0002)"
                         autocomplete="off"
                       />
+                      <button type="button" class="btn btn-ghost" id="scanBtn">Usar câmera</button>
                     </div>
                   </label>
                   <label>
@@ -326,7 +324,7 @@
         </div>
         <form id="loginForm" class="login-form">
           <p class="modal-description">Entre com o email e a senha cadastrados localmente pela CREDE.</p>
-          <p class="field-help">O painel não usa login Google. O Google só será solicitado se você escolher enviar um backup ao Drive.</p>
+          <p class="field-help">O painel não usa login Google. A CREDE administra as credenciais dos usuários locais.</p>
           <label>
             <span>Email</span>
             <input id="localLoginEmailInput" type="email" autocomplete="username" required />
@@ -503,9 +501,22 @@
         <div style="display:flex; flex-wrap:wrap; gap:0.65rem; margin-top:0.8rem;">
           <button class="btn btn-primary" type="button" id="copyNotificationBtn">Copiar mensagem</button>
           <button class="btn btn-ghost" type="button" id="sendWhatsappBtn">Enviar por WhatsApp</button>
-          <button class="btn btn-secondary" type="button" id="sendEmailBtn">Avisar aluno</button>
+          <button class="btn btn-secondary" type="button" id="sendEmailBtn">Avisar leitor por e-mail</button>
           <button class="btn btn-secondary" type="button" id="sendCoordinationBtn">Avisar coordenação</button>
         </div>
+      </div>
+    </div>
+
+    <div class="modal hidden" id="qrScannerModal" aria-hidden="true">
+      <div class="modal-backdrop" data-close="qrScannerModal"></div>
+      <div class="modal-card small qr-modal-card" role="dialog" aria-modal="true" aria-labelledby="qrScannerTitle">
+        <button class="modal-close" type="button" data-close="qrScannerModal" aria-label="Fechar leitor de câmera">×</button>
+        <h3 id="qrScannerTitle">Escanear código do livro</h3>
+        <p class="modal-description">Aponte a câmera para o QR code da etiqueta do livro.</p>
+        <video id="qrScannerVideo" class="qr-scanner-video" autoplay muted playsinline></video>
+        <p id="qrScannerStatus" class="scanner-status" role="status" aria-live="polite">
+          Solicitando acesso à câmera…
+        </p>
       </div>
     </div>
 

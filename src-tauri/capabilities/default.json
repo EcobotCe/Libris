@@ -2,5 +2,13 @@
   "identifier": "default",
   "description": "Permissões básicas da janela principal do Libris.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "dialog:allow-save",
+    "opener:allow-open-url",
+    {
+      "identifier": "fs:allow-write-file",
+      "allow": [{ "path": "$HOME/**" }]
+    }
+  ]
 }

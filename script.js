@@ -1,7 +1,11 @@
 /* Updated script.js — DOM blindagem e limpeza imediata de subscriptions ao signOut.
    Preserva obrigatoriedade schoolId, validações de estoque e regras de autenticação. */
 
-import { auth, googleDriveProvider, GoogleAuthProvider, signInWithEmailAndPassword, signInWithPopup, signOut } from './firebase.js'
+import { auth, signInWithEmailAndPassword, signOut } from './firebase.js'
+import { invoke, isTauri } from '@tauri-apps/api/core'
+import { save } from '@tauri-apps/plugin-dialog'
+import { writeFile } from '@tauri-apps/plugin-fs'
+import { openUrl } from '@tauri-apps/plugin-opener'
 import { createLocalStore } from './local-store.mjs'
 import { createLocalDataApi } from './local-data.mjs'
 import { backupCollectionFiles, backupRecordFromRow, parseBackupCell, resolveLegacyCategory } from './csv-backup.mjs'
@@ -48,7 +52,6 @@ const state = {
   readerFilter: 'all',
   loanQuery: '',
   adminUnsubs: [],
-  driveAccessToken: '',
   loanFilter: 'all'
 }
 
@@ -601,6 +604,7 @@ async function registerLoan() {
     if ($('#readerInput')) $('#readerInput').value = ''
     if ($('#loanReaderIdInput')) $('#loanReaderIdInput').value = ''
     if ($('#readerSuggestions')) $('#readerSuggestions').hidden = true
+    if ($('#bookCodeInput')) $('#bookCodeInput').focus()
     toast('Empréstimo registrado.')
   } catch (err) {
     if (err.message === 'indisponível') {
@@ -655,7 +659,7 @@ function normalizePhone(phone = '') {
   return String(phone || '').replace(/\D/g, '')
 }
 
-function openWhatsAppMessage(reader, message) {
+async function openWhatsAppMessage(reader, message) {
   let phone = normalizePhone(reader?.phone)
   if (!phone) {
     toast('Este leitor não possui telefone cadastrado para WhatsApp.', 'error')
@@ -669,10 +673,23 @@ function openWhatsAppMessage(reader, message) {
     return false
   }
 
-  const url = `https://web.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(message)}`
-  const openedWindow = window.open(url, '_blank', 'noopener,noreferrer')
-  if (!openedWindow) toast('Não foi possível abrir o WhatsApp. Verifique se o navegador bloqueou a nova janela.', 'error')
-  return Boolean(openedWindow)
+  const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`
+  try {
+    if (isTauri()) {
+      await openUrl(url)
+    } else {
+      const link = document.createElement('a')
+      link.href = url
+      link.target = '_blank'
+      link.rel = 'noopener noreferrer'
+      link.click()
+    }
+    return true
+  } catch (err) {
+    console.error('Falha ao abrir o WhatsApp:', err)
+    toast('Não foi possível abrir o WhatsApp. Verifique se há um navegador disponível.', 'error')
+    return false
+  }
 }
 
 async function sendEmailNotification(reader, message, loan, recipient = reader, templateId = config.emailjs.studentTemplateId) {
@@ -805,22 +822,10 @@ async function triggerNotification(type) {
   }
 
   if (type === 'whatsapp') {
-    const sent = openWhatsAppMessage(reader, message)
+    const sent = await openWhatsAppMessage(reader, message)
     if (!sent) return
 
     toast('WhatsApp aberto com a mensagem.')
-    modal('notificationModal', false)
-    return
-  }
-
-  if (isStudentReader(reader)) {
-    const coordEmail = (config.coordinationEmail || $('#coordinationEmailInput')?.value || '').trim()
-    if (!coordEmail) return toast('Cadastre o e-mail da coordenação para encaminhar os avisos dos alunos.', 'error')
-    const messageToCoordination = `Olá, coordenação. O(a) aluno(a) ${reader.name} está com o livro "${loan.bookTitle}" em atraso desde ${formatDate(loan.dueAt)}. ${message}`
-    const recipient = { name: 'Coordenação', email: coordEmail }
-    const sent = await sendEmailWithinMonthlyLimit(reader, messageToCoordination, loan, recipient, config.emailjs.coordinationTemplateId)
-    if (!sent) return
-    toast('Aviso do aluno enviado à coordenação.')
     modal('notificationModal', false)
     return
   }
@@ -921,89 +926,6 @@ function backupFileBaseName() {
   return `libris-backup-${schoolId}-${new Date().toISOString().slice(0, 10)}`
 }
 
-async function getDriveAccessToken() {
-  if (state.driveAccessToken) return state.driveAccessToken
-  const result = await signInWithPopup(auth, googleDriveProvider)
-  const credential = GoogleAuthProvider.credentialFromResult(result)
-  if (!credential?.accessToken) throw new Error('O Google não forneceu acesso ao Drive. Entre novamente e autorize o acesso aos arquivos.')
-  const identityResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-    headers: { Authorization: `Bearer ${credential.accessToken}` }
-  })
-  if (!identityResponse.ok) throw new Error('Não foi possível confirmar a conta Google usada no Drive.')
-  const identity = await identityResponse.json()
-  if (!identity.email) throw new Error('O Google não retornou o email da conta autorizada no Drive.')
-  state.driveAccessToken = credential.accessToken
-  return state.driveAccessToken
-}
-
-async function updateDriveBackupStatus() {
-  const button = $('#backupDriveBtn')
-  const status = $('#backupDriveStatus')
-  if (!button || !status || state.profile?.role !== 'admin') return false
-  const backup = await getDoc(doc(db, '_local_metadata', `drive-backup-${config.currentSchoolId}`))
-  const rawLastBackupAt = backup.exists() ? backup.data().lastBackupAt : null
-  const lastBackupAt = rawLastBackupAt?.toDate
-    ? rawLastBackupAt.toDate()
-    : rawLastBackupAt
-      ? new Date(rawLastBackupAt)
-      : null
-
-  const validLastBackupAt = lastBackupAt instanceof Date && !Number.isNaN(lastBackupAt.getTime())
-  const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000
-  const due = !validLastBackupAt || Date.now() - lastBackupAt.getTime() >= sevenDaysInMs
-  button.hidden = false
-  button.textContent = due ? 'Enviar backup semanal' : 'Backup no Drive'
-  status.hidden = false
-  status.textContent = due
-    ? 'Backup semanal pendente. O envio ocorre com esta máquina ligada e conectada.'
-    : `Último backup: ${lastBackupAt.toLocaleString('pt-BR')}`
-  return due
-}
-
-async function uploadDriveBackup() {
-  const button = $('#backupDriveBtn')
-  if (!state.user || state.profile?.role !== 'admin') return
-  loading(button, true, 'Enviando backup…')
-  try {
-    const accessToken = await getDriveAccessToken()
-    const archive = await createCsvBackupArchive()
-    const boundary = `libris_${globalThis.crypto?.randomUUID?.() || Date.now()}`
-    const filename = `${backupFileBaseName()}.zip`
-    const metadata = JSON.stringify({ name: filename, mimeType: 'application/zip' })
-    const body = new Blob([
-      `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`,
-      `--${boundary}\r\nContent-Type: application/zip\r\n\r\n`,
-      archive,
-      `\r\n--${boundary}--`
-    ], { type: `multipart/related; boundary=${boundary}` })
-    const response = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body
-    })
-    if (!response.ok) {
-      const result = await response.json().catch(() => ({}))
-      if (response.status === 401) state.driveAccessToken = ''
-      throw new Error(result.error?.message || 'O Google Drive recusou o backup.')
-    }
-    const uploadedFile = await response.json()
-    await setDoc(doc(db, '_local_metadata', `drive-backup-${config.currentSchoolId}`), {
-      lastBackupAt: new Date(),
-      filename,
-      driveFileId: uploadedFile.id
-    })
-    toast('Backup semanal enviado ao Google Drive.')
-  } catch (err) {
-    console.error('Falha no backup semanal:', err)
-    error(err, 'Não foi possível enviar o backup ao Google Drive.')
-  } finally {
-    loading(button, false)
-    await updateDriveBackupStatus()
-  }
-}
-
 function downloadBlob(blob, filename) {
   const link = document.createElement('a')
   const url = URL.createObjectURL(blob)
@@ -1013,7 +935,25 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-function downloadBookCsvTemplate() {
+async function saveExportBlob(blob, filename, filterName, extensions) {
+  if (!isTauri()) {
+    downloadBlob(blob, filename)
+    return true
+  }
+
+  const path = await save({
+    title: 'Salvar arquivo do Libris',
+    defaultPath: filename,
+    filters: [{ name: filterName, extensions }]
+  })
+  if (!path) return false
+
+  await writeFile(path, new Uint8Array(await blob.arrayBuffer()))
+  return true
+}
+
+async function downloadBookCsvTemplate() {
+  toast('Preparando o modelo CSV...')
   const headers = [
     'Código',
     'Categoria',
@@ -1031,16 +971,26 @@ function downloadBookCsvTemplate() {
 
   const csv = `\uFEFF${csvFromRows([headers])}`
   const file = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-  downloadBlob(file, 'Libris_Modelo_Livros.csv')
+  try {
+    if (await saveExportBlob(file, 'Libris_Modelo_Livros.csv', 'Arquivo CSV', ['csv'])) {
+      toast('Modelo CSV salvo com sucesso.')
+    }
+  } catch (err) {
+    error(err, 'Não foi possível salvar o modelo CSV.')
+  }
 }
 
 async function exportCsv() {
   const button = $('#exportCsvOption')
   loading(button, true, 'Preparando backup…')
+  toast('Gerando arquivo de backup...')
   try {
     const blob = await createCsvBackupArchive()
-    downloadBlob(blob, `${backupFileBaseName()}.zip`)
-    modal('exportModal', false)
+    const saved = await saveExportBlob(blob, `${backupFileBaseName()}.zip`, 'Backup Libris', ['zip'])
+    if (saved) {
+      modal('exportModal', false)
+      toast('Backup salvo com sucesso.')
+    }
   } catch (err) {
     console.error('Falha ao exportar backup CSV:', err)
     error(err, 'Não foi possível gerar o backup CSV da escola.')
@@ -1161,6 +1111,7 @@ async function importCsv(event) {
   const input = event.target
   const file = input?.files?.[0]
   if (!file) return
+  toast(`Lendo arquivo: ${file.name}`)
   modal('importCsvFileModal', false)
   if (!db || !state.user) { if (input) input.value = ''; return toast('Entre no painel administrativo para importar dados.', 'error') }
   if (file.name.toLowerCase().endsWith('.zip')) {
@@ -1361,15 +1312,12 @@ function resetAdminState() {
   schoolSetupRequired = false
   state.user = null
   state.profile = null
-  state.driveAccessToken = ''
   state.readers = []
   state.loans = []
   state.books = []
   state.categories = []
   if ($('#librisAdminView')) $('#librisAdminView').hidden = true
   if ($('#adminView')) $('#adminView').hidden = true
-  if ($('#backupDriveBtn')) $('#backupDriveBtn').hidden = true
-  if ($('#backupDriveStatus')) $('#backupDriveStatus').hidden = true
   if ($('#openSettingsBtn')) $('#openSettingsBtn').hidden = true
   if ($('#logoutBtn')) $('#logoutBtn').hidden = true
   if ($('#settingsModalTitle')) $('#settingsModalTitle').textContent = 'Configurações da escola'
@@ -1826,7 +1774,7 @@ async function notify(id) {
   const reader = state.readers.find((r) => r.id === loan?.readerId)
   if (!loan) return
   if ($('#notificationContact')) {
-    const emailTarget = reader && isStudentReader(reader) ? `Aviso por e-mail será enviado à coordenação (${config.coordinationEmail || 'email não cadastrado'}).` : reader?.email || loan.readerEmail || 'E-mail não informado'
+    const emailTarget = reader?.email || loan.readerEmail || 'E-mail não informado'
     $('#notificationContact').textContent = `${emailTarget} · ${reader?.phone || 'Telefone não informado'}`
   }
   if ($('#notificationMessage')) $('#notificationMessage').value = `Olá, ${loan.readerName}. O empréstimo do livro "${loan.bookTitle}" vence em ${formatDate(loan.dueAt)}. Por favor, procure a biblioteca escolar.`
@@ -1843,25 +1791,159 @@ async function notify(id) {
   }
 }
 
+let qrScannerStream = null
+let qrScannerControls = null
+let cameraPermissionPending = false
+
+function stopQrScanner() {
+  qrScannerControls?.stop()
+  qrScannerControls = null
+  const video = $('#qrScannerVideo')
+  const stream = qrScannerStream || video?.srcObject
+  stream?.getTracks().forEach((track) => track.stop())
+  qrScannerStream = null
+  if (video) {
+    video.pause()
+    video.srcObject = null
+  }
+  if (isTauri() && cameraPermissionPending) {
+    cameraPermissionPending = false
+    invoke('clear_camera_permission_request').catch((err) => {
+      console.warn('Não foi possível limpar o pedido de permissão da câmera:', err)
+    })
+  }
+}
+
+function openQrScanner() {
+  stopQrScanner()
+  if ($('#qrScannerStatus')) $('#qrScannerStatus').textContent = 'Solicitando acesso à câmera…'
+  modal('qrScannerModal', true)
+  startQrCamera()
+}
+
+function acceptScannedBook(rawValue) {
+  const normalizedValue = String(rawValue || '').trim()
+  if (!normalizedValue) return false
+
+  let payload = null
+  try {
+    payload = JSON.parse(normalizedValue)
+  } catch {
+    payload = null
+  }
+
+  const payloadSchoolId = payload?.schoolId || payload?.s
+  const payloadBookId = payload?.bookId || payload?.b
+  const payloadCode = payload?.code || payload?.c
+  const matchedCode = String(payloadCode || normalizedValue.match(/(?:^|[^A-Z0-9])([A-Z0-9]{1,4}-\d{4})(?:$|[^A-Z0-9])/i)?.[1] || normalizedValue).trim().toUpperCase()
+  const bookById = payloadBookId
+    ? state.books.find((item) => String(item.id) === String(payloadBookId))
+    : null
+  const bookByCode = state.books.find((item) => String(item.code || '').trim().toUpperCase() === matchedCode)
+  const book = bookById || bookByCode
+  const scannedSchoolId = String(payloadSchoolId || '').trim().toLocaleLowerCase('pt-BR')
+  const currentSchoolId = String(config.currentSchoolId || '').trim().toLocaleLowerCase('pt-BR')
+
+  if (payloadSchoolId && scannedSchoolId !== currentSchoolId) {
+    const message = 'Esta etiqueta pertence a outra escola ou está desatualizada. Gere uma nova etiqueta para este acervo.'
+    if ($('#qrScannerStatus')) $('#qrScannerStatus').textContent = message
+    toast(message, 'error')
+    return false
+  }
+
+  if (!book) {
+    const message = matchedCode
+      ? `Livro ${matchedCode} não encontrado no acervo desta escola.`
+      : 'O leitor não enviou um código reconhecível. Confira a etiqueta e tente novamente.'
+    if ($('#qrScannerStatus')) $('#qrScannerStatus').textContent = message
+    toast(message, 'error')
+    return false
+  }
+
+  if ($('#bookCodeInput')) $('#bookCodeInput').value = String(book.code || matchedCode).toUpperCase()
+  stopQrScanner()
+  modal('qrScannerModal', false)
+  $('#readerInput')?.focus()
+  toast(`Livro encontrado: ${book.title}. Selecione o leitor para continuar.`)
+  return true
+}
+
+async function startQrCamera() {
+  const status = $('#qrScannerStatus')
+  const video = $('#qrScannerVideo')
+  if (!navigator.mediaDevices?.getUserMedia) {
+    const message = 'A câmera não está disponível neste contexto. Use o aplicativo instalado ou acesse pelo HTTPS.'
+    if (status) status.textContent = message
+    toast(message, 'error')
+    return
+  }
+  if (!video) {
+    toast('A janela do leitor de câmera não está disponível.', 'error')
+    return
+  }
+
+  try {
+    if (isTauri()) {
+      await invoke('begin_camera_permission_request')
+      cameraPermissionPending = true
+    }
+    const { BrowserQRCodeReader } = await import('https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.5/+esm')
+    const reader = new BrowserQRCodeReader()
+    qrScannerControls = await reader.decodeFromVideoDevice(
+      undefined,
+      video,
+      (result, scanError, controls) => {
+        if (result && acceptScannedBook(result.getText())) controls.stop()
+        if (scanError && scanError.name !== 'NotFoundException') {
+          console.warn('Falha durante a leitura do QR code:', scanError)
+        }
+      },
+      { video: { facingMode: { ideal: 'environment' } }, audio: false }
+    )
+    if (isTauri() && cameraPermissionPending) {
+      await invoke('clear_camera_permission_request')
+      cameraPermissionPending = false
+    }
+    qrScannerStream = video.srcObject
+    if (status) status.textContent = 'Aponte a câmera para o QR code do livro.'
+  } catch (err) {
+    if (isTauri() && cameraPermissionPending) {
+      cameraPermissionPending = false
+      try {
+        await invoke('clear_camera_permission_request')
+      } catch (permissionError) {
+        console.warn('Não foi possível limpar o pedido de permissão da câmera:', permissionError)
+      }
+    }
+    stopQrScanner()
+    console.error('Falha ao iniciar a câmera ou o leitor QR:', err)
+    const detail = err?.message ? ` (${err.message})` : ''
+    const message = err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError'
+      ? 'A câmera foi bloqueada. Feche outros aplicativos que a estejam usando e permita o acesso nas configurações do sistema.'
+      : err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError'
+        ? 'Nenhuma câmera foi encontrada neste dispositivo.'
+        : `Não foi possível iniciar a câmera${err?.name ? ` (${err.name})` : ''}${detail}. Verifique a permissão e tente novamente.`
+    if (status) status.textContent = message
+    toast(message, 'error')
+  }
+}
+
 function handleBookCodeEntry(event) {
   if (event.key !== 'Enter') return
 
   event.preventDefault()
 
   const input = event.currentTarget
-  const scannedCode = String(input.value || '').trim().toUpperCase()
-  if (!scannedCode) return
+  const scannedValue = String(input.value || '').trim()
+  if (!scannedValue) return
 
-  const book = state.books.find((item) => String(item.code || '').toUpperCase() === scannedCode)
-  if (!book) {
-    toast('Livro não encontrado no acervo desta escola.', 'error')
+  if (!acceptScannedBook(scannedValue)) {
     input.select()
-    return
   }
+}
 
-  input.value = book.code
-  $('#readerInput')?.focus()
-  toast(`Livro encontrado: ${book.title}. Selecione o leitor para continuar.`)
+function focusBookCodeInput() {
+  requestAnimationFrame(() => $('#bookCodeInput')?.focus())
 }
 
 /* -------------------------
@@ -1872,6 +1954,7 @@ function setup() {
   $$('.tab-btn').forEach((b) => b.onclick = () => {
     $$('.tab-btn').forEach((tb) => tb.classList.toggle('is-active', tb === b))
     $$('.tab-panel').forEach((p) => p.classList.toggle('is-active', p.dataset.panel === b.dataset.tab))
+    if (b.dataset.tab === 'checkout') focusBookCodeInput()
   })
 
   if ($('#acervoSearchInput')) $('#acervoSearchInput').oninput = (x) => { state.acervoQuery = x.target.value; renderBooks() }
@@ -1935,6 +2018,7 @@ function setup() {
   if ($('#schoolSettingsForm')) $('#schoolSettingsForm').onsubmit = saveSchoolSettings
   if ($('#readerTypeInput')) $('#readerTypeInput').onchange = updateReaderFields
   if ($('#registerLoanBtn')) $('#registerLoanBtn').onclick = registerLoan
+  if ($('#scanBtn')) $('#scanBtn').onclick = openQrScanner
 
   if ($('#openBookModalBtn')) $('#openBookModalBtn').onclick = () => { resetBookForm(); modal('bookFormModal', true) }
   if ($('#openReaderModalBtn')) $('#openReaderModalBtn').onclick = () => { resetReaderForm(); modal('readerFormModal', true) }
@@ -1967,7 +2051,6 @@ function setup() {
   if ($('#cancelBookEditBtn')) $('#cancelBookEditBtn').onclick = () => modal('bookFormModal', false)
   if ($('#cancelReaderEditBtn')) $('#cancelReaderEditBtn').onclick = () => modal('readerFormModal', false)
   if ($('#exportBtn')) $('#exportBtn').onclick = () => modal('exportModal', true)
-  if ($('#backupDriveBtn')) $('#backupDriveBtn').onclick = () => uploadDriveBackup()
   if ($('#exportCsvOption')) $('#exportCsvOption').onclick = exportCsv
   if ($('#openSettingsBtn')) $('#openSettingsBtn').onclick = () => {
     syncSchoolSettingsForm()
@@ -1978,6 +2061,7 @@ function setup() {
   $$('.modal [data-close]').forEach((b) => b.onclick = () => {
     if (b.dataset.close === 'loginModal' && state.profile?.role !== 'admin') return
     if (b.dataset.close === 'settingsModal' && schoolSetupRequired) return toast('Informe o nome da escola para concluir a configuração inicial.', 'error')
+    if (b.dataset.close === 'qrScannerModal') stopQrScanner()
     modal(b.dataset.close, false)
   })
 
@@ -2204,9 +2288,8 @@ async function saveSchoolSettings(event) {
       if ($('#adminView')) $('#adminView').hidden = false
       if ($('#openSettingsBtn')) $('#openSettingsBtn').hidden = false
       if ($('#logoutBtn')) $('#logoutBtn').hidden = false
-      if ($('#backupDriveBtn')) $('#backupDriveBtn').hidden = false
       modal('loginModal', false)
-      await updateDriveBackupStatus()
+      focusBookCodeInput()
     }
 
     modal('settingsModal', false)
@@ -2293,9 +2376,8 @@ async function enterSchoolPanel(user, persistSession = true) {
   if ($('#librisAdminView')) $('#librisAdminView').hidden = true
   if ($('#openSettingsBtn')) $('#openSettingsBtn').hidden = false
   if ($('#logoutBtn')) $('#logoutBtn').hidden = false
-  if ($('#backupDriveBtn')) $('#backupDriveBtn').hidden = false
   modal('loginModal', false)
-  await updateDriveBackupStatus()
+  focusBookCodeInput()
 }
 
 async function handleLocalLogin(event) {
@@ -2396,11 +2478,9 @@ async function init() {
   const adminView = $('#adminView')
   const settingsButton = $('#openSettingsBtn')
   const logoutButton = $('#logoutBtn')
-  const backupButton = $('#backupDriveBtn')
   if (adminView) adminView.hidden = true
   if (settingsButton) settingsButton.hidden = true
   if (logoutButton) logoutButton.hidden = true
-  if (backupButton) backupButton.hidden = true
   if ($('#librisAdminView')) $('#librisAdminView').hidden = true
   if ($('#loginForm')) $('#loginForm').hidden = false
   if ($('#credeLoginForm')) $('#credeLoginForm').hidden = true

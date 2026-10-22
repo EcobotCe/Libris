@@ -1,9 +1,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js'
 import {
   getAuth,
-  GoogleAuthProvider,
   signInWithEmailAndPassword,
-  signInWithPopup,
   signOut,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js'
 
@@ -26,12 +24,8 @@ export const firebaseReady = Boolean(
 
 export const app = firebaseReady ? initializeApp(firebaseConfig) : null
 export const auth = app ? getAuth(app) : null
-export const googleDriveProvider = auth ? new GoogleAuthProvider() : null
-if (googleDriveProvider) googleDriveProvider.addScope('https://www.googleapis.com/auth/drive.file')
 
 export {
   signInWithEmailAndPassword,
-  signInWithPopup,
   signOut,
-  GoogleAuthProvider
 }
